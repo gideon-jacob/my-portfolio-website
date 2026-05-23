@@ -54,15 +54,21 @@ jobs:
 
     - name: Terraform Plan
       id: plan
-      run: terraform plan -no-color
-      continue-on-error: true
-
-    - name: Terraform Plan Status
-      if: steps.plan.outcome == 'failure'
-      run: exit 1
+      run: |
+        export exitcode=0
+        terraform plan -detailed-exitcode -no-color -out=tfplan || export exitcode=$?
+        
+        if [ $exitcode -eq 1 ]; then
+          echo "Terraform plan failed!"
+          exit 1
+        elif [ $exitcode -eq 2 ]; then
+          echo "changes=true" >> $GITHUB_OUTPUT
+        else
+          echo "changes=false" >> $GITHUB_OUTPUT
+        fi
 
     - name: Manual Approval
-      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      if: github.ref == 'refs/heads/main' && github.event_name == 'push' && steps.plan.outputs.changes == 'true'
       uses: trstringer/manual-approval@v1
       with:
         secret: ${{ github.TOKEN }}
@@ -74,5 +80,5 @@ jobs:
         timeout-minutes: 20
 
     - name: Terraform Apply
-      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-      run: terraform apply -auto-approve
+      if: github.ref == 'refs/heads/main' && github.event_name == 'push' && steps.plan.outputs.changes == 'true'
+      run: terraform apply -auto-approve tfplan

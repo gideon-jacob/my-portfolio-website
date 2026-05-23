@@ -1,0 +1,45 @@
+name: 'Destroy Infrastructure'
+
+on:
+  workflow_dispatch: # This ensures it only triggers manually
+
+permissions:
+  id-token: write # Required for requesting the JWT
+  contents: read  # Required for actions/checkout
+
+jobs:
+  destroy:
+    name: 'Terraform Destroy'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./infrastructure
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials from OIDC
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+        aws-region: us-east-1
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+
+    - name: Terraform Init
+      run: terraform init
+
+    - name: Empty S3 Bucket
+      run: |
+        # Ensure bucket is empty before Terraform destroys it to prevent errors
+        if aws s3 ls "s3://portfolio.gideonjacob.in" 2>/dev/null; then
+          echo "Emptying bucket portfolio.gideonjacob.in..."
+          aws s3 rm "s3://portfolio.gideonjacob.in" --recursive
+        else
+          echo "Bucket not found or already deleted."
+        fi
+
+    - name: Terraform Destroy
+      run: terraform destroy -auto-approve

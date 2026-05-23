@@ -1,0 +1,78 @@
+name: 'Terraform'
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'infrastructure/**'
+      - '.github/workflows/terraform.yml'
+  pull_request:
+    branches: [ "main" ]
+    paths:
+      - 'infrastructure/**'
+
+permissions:
+  id-token: write # This is required for requesting the JWT
+  contents: read  # This is required for actions/checkout
+  issues: write   # This is required for trstringer/manual-approval
+
+jobs:
+  terraform:
+    name: 'Terraform'
+    runs-on: ubuntu-latest
+
+    # Use the working directory where the main terraform files are located
+    defaults:
+      run:
+        working-directory: ./infrastructure
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials from OIDC
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+        aws-region: us-east-1
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+
+    - name: Terraform Format
+      id: fmt
+      run: terraform fmt -check
+      continue-on-error: true
+
+    - name: Terraform Init
+      id: init
+      run: terraform init
+
+    - name: Terraform Validate
+      id: validate
+      run: terraform validate -no-color
+
+    - name: Terraform Plan
+      id: plan
+      run: terraform plan -no-color
+      continue-on-error: true
+
+    - name: Terraform Plan Status
+      if: steps.plan.outcome == 'failure'
+      run: exit 1
+
+    - name: Manual Approval
+      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      uses: trstringer/manual-approval@v1
+      with:
+        secret: ${{ github.TOKEN }}
+        approvers: ${{ github.actor }}
+        minimum-approvals: 1
+        issue-title: "Approve Terraform Apply"
+        issue-body: "Please review the Terraform plan in the workflow logs. Approve or deny this issue to proceed with apply."
+        exclude-workflow-initiator-as-approver: false
+        timeout-minutes: 20
+
+    - name: Terraform Apply
+      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      run: terraform apply -auto-approve

@@ -1,0 +1,17 @@
+{
+  "name": "",
+  "title": "",
+  "college": "",
+  "location": "",
+  "profileUrl": "https://linkedin.com/in/gideonjacob",
+  "avatarUrl": "",
+  "skills": [
+    { "name": "", "endorsements": 0 }
+  ],
+  "experience": [
+    { "company": "", "role": "", "duration": "", "description": "" }
+  ],
+  "recentPosts": [
+    { "preview": "", "likes": 0, "comments": 0, "url": "" }
+  ]
+}

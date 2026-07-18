@@ -14,17 +14,19 @@ on:
 permissions:
   id-token: write # This is required for requesting the JWT
   contents: read  # This is required for actions/checkout
-  issues: write   # This is required for trstringer/manual-approval
 
 jobs:
-  terraform:
-    name: 'Terraform'
+  plan:
+    name: 'Terraform Plan'
     runs-on: ubuntu-latest
 
     # Use the working directory where the main terraform files are located
     defaults:
       run:
         working-directory: ./infrastructure
+
+    outputs:
+      changes: ${{ steps.plan.outputs.changes }}
 
     steps:
     - name: Checkout
@@ -67,18 +69,46 @@ jobs:
           echo "changes=false" >> $GITHUB_OUTPUT
         fi
 
-    - name: Manual Approval
-      if: github.ref == 'refs/heads/main' && github.event_name == 'push' && steps.plan.outputs.changes == 'true'
-      uses: trstringer/manual-approval@v1
+    - name: Upload tfplan
+      if: steps.plan.outputs.changes == 'true'
+      uses: actions/upload-artifact@v4
       with:
-        secret: ${{ github.TOKEN }}
-        approvers: ${{ github.actor }}
-        minimum-approvals: 1
-        issue-title: "Approve Terraform Apply"
-        issue-body: "Please review the Terraform plan in the workflow logs. Approve or deny this issue to proceed with apply."
-        exclude-workflow-initiator-as-approver: false
-        timeout-minutes: 20
+        name: tfplan
+        path: infrastructure/tfplan
+
+  apply:
+    name: 'Terraform Apply'
+    needs: plan
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && needs.plan.outputs.changes == 'true'
+    runs-on: ubuntu-latest
+    environment: production
+
+    # Use the working directory where the main terraform files are located
+    defaults:
+      run:
+        working-directory: ./infrastructure
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials from OIDC
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+        aws-region: us-east-1
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+
+    - name: Download tfplan
+      uses: actions/download-artifact@v4
+      with:
+        name: tfplan
+        path: infrastructure
+
+    - name: Terraform Init
+      run: terraform init
 
     - name: Terraform Apply
-      if: github.ref == 'refs/heads/main' && github.event_name == 'push' && steps.plan.outputs.changes == 'true'
       run: terraform apply -auto-approve tfplan

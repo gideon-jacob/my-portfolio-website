@@ -84,12 +84,14 @@ gideon-portfolio-website/
 │   └── vite.config.ts             # Vite bundler configurations
 └── infrastructure/                # Terraform Infrastructure as Code config
     ├── bootstrap/                 # Backend Terraform OIDC state bootstrapping
-    ├── acm.tf                     # SSL/TLS ACM Certificate definition
-    ├── cloudfront.tf              # CloudFront CDN configuration
+    ├── modules/
+    │   └── frontend-website/      # Reusable module deploying frontend website
+    │       ├── main.tf            # Core module resources (S3, CDN, Route53, ACM)
+    │       ├── variables.tf       # Module input variables
+    │       └── outputs.tf         # Module outputs
     ├── main.tf                    # Core Terraform providers & backend configuration
-    ├── route53.tf                 # DNS Zone & custom records setup
-    ├── s3.tf                      # Static web hosting S3 bucket resources
-    └── variables.tf               # Global environment variable defaults
+    ├── variables.tf               # Global environment variable defaults
+    └── website.tf                 # Module instantiation and state migrations
 ```
 
 ---

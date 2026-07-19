@@ -30,7 +30,7 @@ resource "aws_iam_role" "github_actions_terraform_role" {
 resource "aws_iam_policy" "terraform_infrastructure_policy" {
   name        = "terraform-infrastructure-policy"
   description = "Tightly scoped permissions for GitHub Actions Terraform to manage S3, CloudFront, ACM, Route53"
-  
+
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [

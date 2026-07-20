@@ -15,3 +15,9 @@ variable "subdomain_name" {
   type        = string
   default     = "portfolio.gideonjacob.in"
 }
+
+variable "application_name" {
+  description = "The name of the application to track billing and resource metadata"
+  type        = string
+  default     = "my-portfolio-website"
+}

@@ -2,14 +2,17 @@ name: 'Terraform'
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "dev" ]
     paths:
       - 'infrastructure/**'
       - '.github/workflows/terraform.yml'
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "dev" ]
     paths:
       - 'infrastructure/**'
+
+env:
+  ENVIRONMENT: ${{ (github.ref == 'refs/heads/main' || github.base_ref == 'main') && 'default' || 'dev' }}
 
 permissions:
   id-token: write # This is required for requesting the JWT
@@ -50,6 +53,9 @@ jobs:
       id: init
       run: terraform init
 
+    - name: Select Workspace
+      run: terraform workspace select ${{ env.ENVIRONMENT }} || terraform workspace new ${{ env.ENVIRONMENT }}
+
     - name: Terraform Validate
       id: validate
       run: terraform validate -no-color
@@ -79,9 +85,9 @@ jobs:
   apply:
     name: 'Terraform Apply'
     needs: plan
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && needs.plan.outputs.changes == 'true'
+    if: github.event_name == 'push' && needs.plan.outputs.changes == 'true' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev')
     runs-on: ubuntu-latest
-    environment: production
+    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'dev' }}
 
     # Use the working directory where the main terraform files are located
     defaults:
@@ -110,5 +116,9 @@ jobs:
     - name: Terraform Init
       run: terraform init
 
+    - name: Select Workspace
+      run: terraform workspace select ${{ env.ENVIRONMENT }} || terraform workspace new ${{ env.ENVIRONMENT }}
+
     - name: Terraform Apply
       run: terraform apply -auto-approve tfplan
+

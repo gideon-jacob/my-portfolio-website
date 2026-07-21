@@ -7,7 +7,7 @@ module "frontend_website" {
   }
 
   domain_name    = var.domain_name
-  subdomain_name = var.subdomain_name
+  subdomain_name = local.subdomain_name
 }
 
 # State migration moved blocks to ensure zero-downtime refactoring

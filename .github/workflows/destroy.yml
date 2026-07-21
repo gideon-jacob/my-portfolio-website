@@ -1,7 +1,20 @@
 name: 'Destroy Infrastructure'
 
 on:
-  workflow_dispatch: # This ensures it only triggers manually
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to destroy (dev or production)'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - production
+
+env:
+  ENVIRONMENT: ${{ github.event.inputs.environment == 'production' && 'default' || 'dev' }}
+  SUBDOMAIN: ${{ github.event.inputs.environment == 'production' && 'portfolio.gideonjacob.in' || 'dev-portfolio.gideonjacob.in' }}
 
 permissions:
   id-token: write # Required for requesting the JWT
@@ -31,15 +44,25 @@ jobs:
     - name: Terraform Init
       run: terraform init
 
+    - name: Select Workspace
+      run: terraform workspace select ${{ env.ENVIRONMENT }} || terraform workspace new ${{ env.ENVIRONMENT }}
+
     - name: Empty S3 Bucket
       run: |
         # Ensure bucket is empty before Terraform destroys it to prevent errors
-        if aws s3 ls "s3://portfolio.gideonjacob.in" 2>/dev/null; then
-          echo "Emptying bucket portfolio.gideonjacob.in..."
-          aws s3 rm "s3://portfolio.gideonjacob.in" --recursive
+        if aws s3 ls "s3://${{ env.SUBDOMAIN }}" 2>/dev/null; then
+          echo "Emptying bucket ${{ env.SUBDOMAIN }}..."
+          aws s3 rm "s3://${{ env.SUBDOMAIN }}" --recursive
         else
           echo "Bucket not found or already deleted."
         fi
 
+    - name: Prevent Destroy Application Metadata
+      run: |
+        # Remove the AppRegistry application from state if it exists so Terraform does not destroy it.
+        # In dev, this is already a no-op as the resource count is 0.
+        terraform state rm aws_servicecatalogappregistry_application.my_app[0] || true
+
     - name: Terraform Destroy
       run: terraform destroy -auto-approve
+

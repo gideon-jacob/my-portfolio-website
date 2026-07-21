@@ -2,10 +2,13 @@ name: 'Deploy Frontend'
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "dev" ]
     paths:
       - 'frontend/**'
       - '.github/workflows/deploy.yml'
+
+env:
+  SUBDOMAIN: ${{ (github.ref == 'refs/heads/main' || github.base_ref == 'main') && 'portfolio.gideonjacob.in' || 'dev-portfolio.gideonjacob.in' }}
 
 permissions:
   id-token: write
@@ -44,9 +47,9 @@ jobs:
 
     - name: Wait for Infrastructure
       run: |
-        echo "Waiting for S3 bucket portfolio.gideonjacob.in to become available..."
+        echo "Waiting for S3 bucket ${{ env.SUBDOMAIN }} to become available..."
         while true; do
-          if aws s3api head-bucket --bucket portfolio.gideonjacob.in 2>/dev/null; then
+          if aws s3api head-bucket --bucket ${{ env.SUBDOMAIN }} 2>/dev/null; then
             echo "Bucket exists."
             break
           else
@@ -57,7 +60,7 @@ jobs:
         
         echo "Waiting for CloudFront distribution..."
         while true; do
-          DIST_ID=$(aws cloudfront list-distributions --query "DistributionList.Items[?Aliases.Items!=null] | [?contains(Aliases.Items, 'portfolio.gideonjacob.in')].Id | [0]" --output text)
+          DIST_ID=$(aws cloudfront list-distributions --query "DistributionList.Items[?Aliases.Items!=null] | [?contains(Aliases.Items, '${{ env.SUBDOMAIN }}')].Id | [0]" --output text)
           if [ "$DIST_ID" != "None" ] && [ "$DIST_ID" != "null" ] && [ -n "$DIST_ID" ]; then
             STATUS=$(aws cloudfront get-distribution --id $DIST_ID --query "Distribution.Status" --output text)
             if [ "$STATUS" == "Deployed" ]; then
@@ -74,14 +77,15 @@ jobs:
         done
 
     - name: Sync to S3
-      run: aws s3 sync ./dist s3://portfolio.gideonjacob.in --delete
+      run: aws s3 sync ./dist s3://${{ env.SUBDOMAIN }} --delete
 
     - name: Invalidate CloudFront
       run: |
-        DIST_ID=$(aws cloudfront list-distributions --query "DistributionList.Items[?Aliases.Items!=null] | [?contains(Aliases.Items, 'portfolio.gideonjacob.in')].Id | [0]" --output text)
+        DIST_ID=$(aws cloudfront list-distributions --query "DistributionList.Items[?Aliases.Items!=null] | [?contains(Aliases.Items, '${{ env.SUBDOMAIN }}')].Id | [0]" --output text)
         if [ "$DIST_ID" != "None" ] && [ "$DIST_ID" != "null" ] && [ -n "$DIST_ID" ]; then
           aws cloudfront create-invalidation --distribution-id $DIST_ID --paths "/*"
         else
-          echo "Could not find CloudFront distribution for portfolio.gideonjacob.in"
+          echo "Could not find CloudFront distribution for ${{ env.SUBDOMAIN }}"
           exit 1
         fi
+
